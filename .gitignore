@@ -74,7 +74,11 @@ analysis_benchmark.json
 .pub-preload-cache/
 .pub-cache/
 .pub/
+.appimage-build/
+AppDir/
 build/
+dist/
+flutter-build.log
 flutter_*.png
 linked_*.ds
 unlinked.ds
