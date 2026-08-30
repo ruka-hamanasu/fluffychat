@@ -44,6 +44,19 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      - name: Prepare release signing key
+        env:
+          RUKA_DEV_KEYSTORE: ${{ secrets.RUKA_DEV_KEYSTORE }}
+          RUKA_DEV_KEYSTORE_PASS: ${{ secrets.RUKA_DEV_KEYSTORE_PASS }}
+        run: |
+          echo "$RUKA_DEV_KEYSTORE" | base64 -d > android/ruka-dev.keystore
+          cat > android/key.properties <<EOF
+          storePassword=$RUKA_DEV_KEYSTORE_PASS
+          keyPassword=$RUKA_DEV_KEYSTORE_PASS
+          keyAlias=rukadev
+          storeFile=../ruka-dev.keystore
+          EOF
+
       - name: Build release APK
         run: |
           flutter pub get
