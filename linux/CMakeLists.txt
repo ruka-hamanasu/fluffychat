@@ -2,8 +2,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(runner LANGUAGES CXX)
 
-# smth sqlcipher_flutter_libs static linking Hundreds
-set(OPENSSL_USE_STATIC_LIBS OFF)
+# Statically link the C++ runtime into the executable and all plugins. This
+# lowers the libstdc++ version floor of the shipped binaries and keeps
+# libstdc++/libgcc out of the AppImage bundle.
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "fluffychat")
@@ -76,6 +79,17 @@ apply_standard_settings(${BINARY_NAME})
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
+# Optional libstdc++ ABI shim (built by scripts/linux-appimage/entrypoint.sh).
+# With statically linked libstdc++ and older binutils (e.g. EL8's ld 2.30),
+# versioned C++ symbols referenced only by prebuilt shared libraries
+# (libwebrtc.so needs basic_stringstream<char>::ctor @GLIBCXX_3.4.26) cannot be
+# satisfied by the executable, so the link fails. The shim is a tiny shared
+# library that re-exports those symbols with proper version definitions.
+set(STDCXX_SHIM "${CMAKE_CURRENT_SOURCE_DIR}/../.appimage-build/libstdcxx_shim.so")
+if(EXISTS "${STDCXX_SHIM}")
+  target_link_libraries(${BINARY_NAME} PRIVATE "${STDCXX_SHIM}")
+endif()
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
@@ -124,6 +138,12 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endforeach(bundled_library)
+
+# Bundle the optional libstdc++ ABI shim (see above) next to the other libs.
+if(EXISTS "${STDCXX_SHIM}")
+  install(FILES "${STDCXX_SHIM}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+endif()
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")

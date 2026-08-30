@@ -1,0 +1,26 @@
+name: desktop_webview_window
+description: >-
+  Pure-Dart stub of package:desktop_webview_window for the FluffyChat Linux
+  AppImage build. The real package is only ever invoked on Linux when
+  flutter_web_auth_2 is called with useWebview: true, but FluffyChat always
+  passes useWebview: PlatformInfos.isMobile (false on Linux), so the native
+  webview is dead code that would otherwise drag the entire WebKitGTK stack
+  into the AppImage. This stub keeps the Dart API surface so the tree still
+  compiles, but declares no plugin platforms, so no native code (and no
+  WebKitGTK) is built or bundled. Any actual call would throw a
+  MissingPluginException. Version must stay within the constraint required by
+  flutter_web_auth_2 (currently desktop_webview_window: ^0.3.0).
+version: 0.3.0
+homepage: https://github.com/MixinNetwork/flutter-plugins/tree/main/packages/desktop_webview_window
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=2.5.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  path: ^1.8.0
+
+# NOTE: no flutter.plugin.platforms section on purpose - this is a pure Dart
+# package, so the Flutter tool does not register any native plugin for it.

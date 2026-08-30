@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=FluffyChat
+Exec=fluffychat
+Icon=fluffychat
+Type=Application
+Categories=Network;Chat;InstantMessaging;
