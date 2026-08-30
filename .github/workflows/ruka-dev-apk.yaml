@@ -57,6 +57,11 @@ jobs:
           storeFile=../ruka-dev.keystore
           EOF
 
+      - name: Rebrand for side-by-side install
+        run: |
+          sed -i 's/applicationId = "chat.fluffy.fluffychat"/applicationId = "org.agiadn.fluffychat_ruka"/' android/app/build.gradle.kts
+          sed -i 's/android:label="FluffyChat"/android:label="FluffyChat ruka-dev"/' android/app/src/main/AndroidManifest.xml
+
       - name: Build release APK
         run: |
           flutter pub get
