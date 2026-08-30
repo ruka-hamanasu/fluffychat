@@ -83,4 +83,30 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
     chmod -R a+w /opt/rustup /opt/cargo
 ENV PATH="/opt/cargo/bin:${PATH}"
 
+# SQLCipher, built from source against the EL8 userspace (glibc 2.28, OpenSSL
+# 1.1.1). The AppImage bundles this library instead of the system libsqlite3
+# so that the encrypted database works: the sqlite3 hook is built with
+# `source: system, name: sqlcipher` (see entrypoint.sh) and therefore
+# dlopen()s libsqlcipher.so at runtime. OpenSSL is linked dynamically;
+# entrypoint.sh bundles EL8's libcrypto.so.1.1, which distros shipping
+# OpenSSL 3 (Ubuntu 22.04+ and friends) do not provide.
+# Pinned to 4.6.1: 4.7+ requires OpenSSL 3 APIs (EVP_MAC_*), which EL8's
+# OpenSSL 1.1.1 does not have. All SQLCipher 4.x releases share the same
+# database format, so 4.6.1 reads databases written by newer 4.x versions.
+# Kept as the last layer so the expensive Flutter/Rust layers above stay
+# cached when the SQLCipher version is bumped. tcl is required by the
+# SQLite/SQLCipher build system.
+ARG SQLCIPHER_VERSION=4.6.1
+RUN dnf install -y tcl && dnf clean all && \
+    curl -fL "https://github.com/sqlcipher/sqlcipher/archive/refs/tags/v${SQLCIPHER_VERSION}.tar.gz" \
+        -o /tmp/sqlcipher.tar.gz && \
+    tar -xzf /tmp/sqlcipher.tar.gz -C /tmp && \
+    cd "/tmp/sqlcipher-${SQLCIPHER_VERSION}" && \
+    ./configure --prefix=/opt/sqlcipher --enable-tempstore=yes \
+        CFLAGS="-O2 -DSQLITE_HAS_CODEC -DSQLCIPHER_CRYPTO_OPENSSL" \
+        LDFLAGS="-lcrypto" && \
+    make -j"$(nproc)" && \
+    make install && \
+    cd / && rm -rf /tmp/sqlcipher.tar.gz "/tmp/sqlcipher-${SQLCIPHER_VERSION}"
+
 WORKDIR /build

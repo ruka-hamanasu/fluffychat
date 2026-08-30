@@ -19,10 +19,14 @@ cd /build
 # useWebview: PlatformInfos.isMobile == false), so the native plugin only
 # serves to drag the whole WebKitGTK stack into the AppImage.
 #
-# Note: the sqlite3 hook stays on `source: system` (EL8's libsqlite3, built
-# against glibc 2.28, is bundled below). The `sqlite3` source would download a
-# prebuilt library that requires GLIBC_2.34, defeating the point of building
-# on Holy Build Box.
+# Note on the sqlite3 hook: it keeps `source: system` (the prebuilt `sqlite3`
+# source would download a library requiring GLIBC_2.34, defeating the point of
+# building on Holy Build Box), but `name: sqlcipher` is injected below so Dart
+# FFI dlopen()s `libsqlcipher.so` instead of `libsqlite3.so`. That library is
+# built from source in the Dockerfile against the EL8 userspace and bundled
+# into the AppImage, which is what makes the encrypted database work (plain
+# libsqlite3 has no SQLCipher codec and SQfLiteEncryptionHelper refuses to
+# silently fall back to an unencrypted database).
 # ---------------------------------------------------------------------------
 # Files flutter rewrites when resolving dependencies with the temporary
 # override below; back them up and restore them on exit (also on failure) so
@@ -46,6 +50,15 @@ cat >> pubspec.yaml <<'EOF'
     # scripts/linux-appimage/entrypoint.sh. Not committed to the repo.
     path: scripts/linux-appimage/stub_desktop_webview_window
 EOF
+
+# Point the sqlite3 hook at SQLCipher (see the note above). With
+# `source: system` the hook dlopen()s `lib<name>.so` at runtime; `name`
+# changes that lookup from libsqlite3.so to libsqlcipher.so.
+sed -i '/^      source: system$/a\      name: sqlcipher' pubspec.yaml
+grep -A1 'source: system' pubspec.yaml | grep -q 'name: sqlcipher' || {
+    echo "Error: failed to set sqlite3 hook name to sqlcipher" >&2
+    exit 1
+}
 
 echo "=== Cleaning previous build ==="
 flutter clean
@@ -143,12 +156,18 @@ echo "=== Bundling dependencies ==="
 # egl/server ARE bundled (newer EL8 builds); they need the matching client
 # library or the app crashes on hosts with an older wayland (symbol lookup
 # error: wl_proxy_marshal_flags).
+# libsqlcipher.so.0 (built from source in the Dockerfile) provides the
+# SQLCipher codec the encrypted database needs; the sqlite3 hook dlopen()s it
+# because of the `name: sqlcipher` override above. It links OpenSSL
+# dynamically, so EL8's libcrypto.so.1.1 must be bundled too: distros shipping
+# OpenSSL 3 (Ubuntu 22.04+ and friends) do not ship libcrypto.so.1.1.
 /opt/appimage-tools/linuxdeploy/AppRun \
   --appdir AppDir \
   --plugin gtk \
   --library /usr/lib64/libmpv.so.1 \
   --library /usr/lib64/libsecret-1.so.0 \
-  --library /usr/lib64/libsqlite3.so.0 \
+  --library /opt/sqlcipher/lib/libsqlcipher.so.0 \
+  --library /usr/lib64/libcrypto.so.1.1 \
   --library /usr/lib64/libwayland-client.so.0 \
   --desktop-file AppDir/fluffychat.desktop \
   --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/fluffychat.png
@@ -164,6 +183,15 @@ for lib in AppDir/usr/bin/lib/*.so*; do
     name=$(basename "$lib")
     [ -e "AppDir/usr/lib/$name" ] || ln -s "../bin/lib/$name" "AppDir/usr/lib/$name"
 done
+
+# The sqlite3 hook (name: sqlcipher) dlopen()s the unversioned
+# `libsqlcipher.so`, but linuxdeploy only ships the versioned soname. Provide
+# the unversioned symlink, and fail loudly if the library was not deployed.
+test -e AppDir/usr/lib/libsqlcipher.so.0 || {
+    echo "Error: libsqlcipher.so.0 was not bundled into AppDir/usr/lib" >&2
+    exit 1
+}
+ln -sf libsqlcipher.so.0 AppDir/usr/lib/libsqlcipher.so
 
 echo "=== Creating AppImage ==="
 # Prefer dense squashfs compression (smaller file): zstd if the appimagetool
