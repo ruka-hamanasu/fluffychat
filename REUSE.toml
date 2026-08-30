@@ -61,3 +61,11 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2017-Present Fabiyamada"
 SPDX-License-Identifier = "CC-BY-4.0"
+
+# ruka-dev fork launcher icon
+[[annotations]]
+path = [
+    "assets/ruka.png"
+]
+SPDX-FileCopyrightText = "2026 ruka-hamanasu"
+SPDX-License-Identifier = "CC-BY-4.0"
