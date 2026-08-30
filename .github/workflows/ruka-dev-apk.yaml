@@ -58,18 +58,12 @@ jobs:
           EOF
 
       - name: Rebrand for side-by-side install
+        # The launcher icons are pre-generated from assets/ruka.png and
+        # committed to android/app/src/main/res/mipmap-*/ (the adaptive icon
+        # XML is removed so API 26+ falls back to the static PNGs).
         run: |
           sed -i 's/applicationId = "chat.fluffy.fluffychat"/applicationId = "org.agiadn.fluffychat_ruka"/' android/app/build.gradle.kts
           sed -i 's/android:label="FluffyChat"/android:label="FluffyChat-Ruka"/' android/app/src/main/AndroidManifest.xml
-          # Replace launcher icons with assets/ruka.png and drop the adaptive
-          # icon XML so API 26+ falls back to the static PNGs.
-          rm android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-          for entry in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
-            density="${entry%%:*}"
-            size="${entry##*:}"
-            convert assets/ruka.png -resize "${size}x${size}" \
-              "android/app/src/main/res/mipmap-${density}/ic_launcher.png"
-          done
 
       - name: Build release APK
         run: |

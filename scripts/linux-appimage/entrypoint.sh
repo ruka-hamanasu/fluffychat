@@ -39,7 +39,11 @@ windows/flutter/generated_plugin_registrant.cc \
 windows/flutter/generated_plugins.cmake"
 for f in $GENERATED_FILES; do cp "$f" "$f.appimage-backup"; done
 restore_files() {
-    for f in $GENERATED_FILES; do mv -f "$f.appimage-backup" "$f"; done
+    # Restore from /build explicitly and never fail: a failing restore must
+    # not mask the real build error (the original bug that made a failed
+    # download look like "mv: cannot stat 'pubspec.yaml.appimage-backup'").
+    cd /build || return 0
+    for f in $GENERATED_FILES; do mv -f "$f.appimage-backup" "$f" || true; done
 }
 trap restore_files EXIT
 
@@ -120,35 +124,6 @@ rsvg-convert -w 256 -h 256 assets/logo/vector/logo.svg \
   -o AppDir/usr/share/icons/hicolor/256x256/apps/fluffychat.png
 
 cp scripts/linux-appimage/fluffychat.desktop AppDir/fluffychat.desktop
-
-echo "=== Downloading/extracting AppImage tools ==="
-mkdir -p /opt/appimage-tools && cd /opt/appimage-tools
-
-if [ ! -d linuxdeploy ]; then
-    wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-    chmod +x linuxdeploy-x86_64.AppImage
-    ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null
-    mv squashfs-root linuxdeploy
-fi
-
-if [ ! -d appimagetool ]; then
-    # The modern AppImage/appimagetool replaces the obsolete AppImageKit
-    # release and ships a type-2 runtime that supports zstd compression.
-    wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-    chmod +x appimagetool-x86_64.AppImage
-    ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
-    mv squashfs-root appimagetool
-fi
-
-# linuxdeploy discovers plugins as executables named linuxdeploy-plugin-<name>
-# on PATH, so download the GTK plugin under exactly that name.
-if [ ! -x linuxdeploy-plugin-gtk ]; then
-    wget -q -O linuxdeploy-plugin-gtk https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
-    chmod +x linuxdeploy-plugin-gtk
-fi
-export PATH="/opt/appimage-tools:${PATH}"
-
-cd /build
 
 echo "=== Bundling dependencies ==="
 # libmpv is dlopen()ed by media_kit at runtime, so linuxdeploy cannot detect

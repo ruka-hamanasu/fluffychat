@@ -83,6 +83,27 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
     chmod -R a+w /opt/rustup /opt/cargo
 ENV PATH="/opt/cargo/bin:${PATH}"
 
+# AppImage tooling (linuxdeploy + GTK plugin, appimagetool), downloaded at
+# image build time so CI builds do not depend on runtime network access to
+# GitHub releases. Extracted with --appimage-extract, which needs no FUSE.
+# linuxdeploy discovers plugins as executables named linuxdeploy-plugin-<name>
+# on PATH, so the GTK plugin is downloaded under exactly that name.
+RUN cd /opt/appimage-tools && \
+    wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && \
+    chmod +x linuxdeploy-x86_64.AppImage && \
+    ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null && \
+    mv squashfs-root linuxdeploy && \
+    rm linuxdeploy-x86_64.AppImage && \
+    wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage && \
+    chmod +x appimagetool-x86_64.AppImage && \
+    ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null && \
+    mv squashfs-root appimagetool && \
+    rm appimagetool-x86_64.AppImage && \
+    wget -q -O linuxdeploy-plugin-gtk https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh && \
+    chmod +x linuxdeploy-plugin-gtk && \
+    chmod -R a+rX /opt/appimage-tools
+ENV PATH="/opt/appimage-tools:${PATH}"
+
 # SQLCipher, built from source against the EL8 userspace (glibc 2.28, OpenSSL
 # 1.1.1). The AppImage bundles this library instead of the system libsqlite3
 # so that the encrypted database works: the sqlite3 hook is built with
