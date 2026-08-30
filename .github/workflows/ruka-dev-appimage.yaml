@@ -1,0 +1,51 @@
+name: ruka-dev AppImage
+
+on:
+  push:
+    branches:
+      - ruka-dev
+  workflow_dispatch:
+
+concurrency:
+  group: ruka-dev-appimage
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build_and_publish_appimage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Free up disk space
+        uses: ./.github/actions/free_up_space
+        with:
+          target: appimage
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Read Flutter version
+        run: echo "FLUTTER_VERSION=$(yq '.environment.flutter' < .tool_versions.yaml)" >> "$GITHUB_ENV"
+
+      - name: Build AppImage
+        env:
+          FLUTTER_VERSION: ${{ env.FLUTTER_VERSION }}
+          APPIMAGE_BUILD_CACHE: gha
+        run: ./scripts/build-linux-appimage.sh
+
+      - name: Publish AppImage to ruka-dev release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ruka-dev
+          tag_name: ruka-dev
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: dist/appimage/FluffyChat-x86_64.AppImage

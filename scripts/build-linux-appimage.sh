@@ -25,14 +25,37 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # mountpoint on the host) before building.
 OUTPUT_DIR="${PROJECT_ROOT}/dist/appimage"
 
+# Default Flutter version is read from .tool_versions.yaml; allow override
+# via the FLUTTER_VERSION environment variable for CI or local testing.
+FLUTTER_VERSION="${FLUTTER_VERSION:-$(yq '.environment.flutter' < "${PROJECT_ROOT}/.tool_versions.yaml" 2>/dev/null || true)}"
+if [ -z "$FLUTTER_VERSION" ]; then
+    FLUTTER_VERSION="3.47.1"
+fi
+
 mkdir -p "$OUTPUT_DIR"
 
-echo "=== Building container image with $CONTAINER_ENGINE ==="
-$CONTAINER_ENGINE build \
-  --build-arg FLUTTER_VERSION=3.47.1 \
-  -t "$IMAGE_TAG" \
-  -f "${PROJECT_ROOT}/scripts/linux-appimage/Dockerfile" \
-  "${PROJECT_ROOT}/scripts/linux-appimage"
+# Caching: in CI we can use Docker Buildx with GitHub Actions cache. Locally
+# the container engine's normal layer cache is used.
+APPIMAGE_BUILD_CACHE="${APPIMAGE_BUILD_CACHE:-}"
+
+if [ "$APPIMAGE_BUILD_CACHE" = "gha" ] && [ "$CONTAINER_ENGINE" = "docker" ]; then
+    echo "=== Building container image with Docker Buildx + GHA cache (Flutter $FLUTTER_VERSION) ==="
+    docker buildx build \
+      --build-arg FLUTTER_VERSION="$FLUTTER_VERSION" \
+      -t "$IMAGE_TAG" \
+      -f "${PROJECT_ROOT}/scripts/linux-appimage/Dockerfile" \
+      --cache-from type=gha \
+      --cache-to type=gha,mode=max \
+      --load \
+      "${PROJECT_ROOT}/scripts/linux-appimage"
+else
+    echo "=== Building container image with $CONTAINER_ENGINE (Flutter $FLUTTER_VERSION) ==="
+    $CONTAINER_ENGINE build \
+      --build-arg FLUTTER_VERSION="$FLUTTER_VERSION" \
+      -t "$IMAGE_TAG" \
+      -f "${PROJECT_ROOT}/scripts/linux-appimage/Dockerfile" \
+      "${PROJECT_ROOT}/scripts/linux-appimage"
+fi
 
 # Docker runs as real root, so map to the host UID to avoid root-owned output files.
 # Rootless Podman maps container root to the host user, so running as container root

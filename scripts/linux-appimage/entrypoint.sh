@@ -132,7 +132,9 @@ if [ ! -d linuxdeploy ]; then
 fi
 
 if [ ! -d appimagetool ]; then
-    wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+    # The modern AppImage/appimagetool replaces the obsolete AppImageKit
+    # release and ships a type-2 runtime that supports zstd compression.
+    wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
     chmod +x appimagetool-x86_64.AppImage
     ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
     mv squashfs-root appimagetool
@@ -194,12 +196,9 @@ test -e AppDir/usr/lib/libsqlcipher.so.0 || {
 ln -sf libsqlcipher.so.0 AppDir/usr/lib/libsqlcipher.so
 
 echo "=== Creating AppImage ==="
-# Prefer dense squashfs compression (smaller file): zstd if the appimagetool
-# runtime supports it, xz otherwise (this appimagetool build has no zstd).
-if ! /opt/appimage-tools/appimagetool/AppRun --comp zstd AppDir /output/FluffyChat-x86_64.AppImage; then
-    echo "zstd compression unsupported, falling back to xz"
-    /opt/appimage-tools/appimagetool/AppRun --comp xz AppDir /output/FluffyChat-x86_64.AppImage
-fi
+# Use zstd compression for a smaller AppImage while remaining compatible with
+# the type-2 runtime shipped by the modern appimagetool.
+/opt/appimage-tools/appimagetool/AppRun --comp zstd AppDir /output/FluffyChat-x86_64.AppImage
 
 # ---------------------------------------------------------------------------
 # Portability audit: report the highest glibc/libstdc++ symbol versions
