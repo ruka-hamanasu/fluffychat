@@ -11,7 +11,7 @@ import 'package:material_ui/material_ui.dart';
 abstract class FluffyThemes {
   static const double columnWidth = 380.0;
 
-  static const double maxTimelineWidth = columnWidth * 2;
+  static const double maxBubbleWidth = columnWidth * 2.5;
 
   static const double navRailWidth = 80.0;
 
